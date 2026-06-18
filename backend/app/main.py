@@ -1,55 +1,68 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 from app.config import settings
-from app.database import init_db
-from app.api import auth, chat, orders, wallet, dashboard
+from app.models import Base
+from app.api import auth, orders, chat
+import logging
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
+    title="TestZoo API",
+    description="Diagnostic test marketplace with chat-based recommendations",
     version="1.0.0",
-    description="TestZoo — Diagnostic Test Marketplace API",
-    lifespan=lifespan,
 )
 
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix=settings.API_V1_STR)
-app.include_router(chat.router, prefix=settings.API_V1_STR)
-app.include_router(orders.router, prefix=settings.API_V1_STR)
-app.include_router(wallet.router, prefix=settings.API_V1_STR)
-app.include_router(dashboard.router, prefix=settings.API_V1_STR)
+# Initialize database
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    future=True,
+)
 
+async_session = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
-@app.get("/health")
-async def health():
-    return {"status": "ok", "service": "TestZoo API"}
+# Create tables on startup
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("✅ Database initialized")
 
+# Include routers
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(orders.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
     return {
-        "service": "TestZoo API",
+        "message": "Welcome to TestZoo API",
         "version": "1.0.0",
         "docs": "/docs",
-        "mcp_servers": {
-            "catalog": f"http://localhost:{settings.MCP_CATALOG_PORT}",
-            "orders": f"http://localhost:{settings.MCP_ORDERS_PORT}",
-            "payment": f"http://localhost:{settings.MCP_PAYMENT_PORT}",
-            "dashboard": f"http://localhost:{settings.MCP_DASHBOARD_PORT}",
-            "patient": f"http://localhost:{settings.MCP_PATIENT_PORT}",
-        },
+        "health": "/health",
     }
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "testzoo-backend"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
