@@ -1,0 +1,142 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: workspace_user
+      POSTGRES_PASSWORD: "Suni@123"
+      POSTGRES_DB: sonu
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workspace_user -d sonu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: workspace_user
+      DB_PASS: "Suni@123"
+      DB_NAME: sonu
+      REDIS_URL: redis://redis:6379
+    env_file:
+      - testzoo.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+
+  mcp-catalog:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    env_file:
+      - testzoo.env
+    environment:
+      DATABASE_URL_ASYNC: postgresql://workspace_user:Suni@123@postgres:5432/sonu
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m app.mcp.mcp_catalog_server
+
+  mcp-orders:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    env_file:
+      - testzoo.env
+    environment:
+      DATABASE_URL_ASYNC: postgresql://workspace_user:Suni@123@postgres:5432/sonu
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m app.mcp.mcp_orders_whatsapp_server
+
+  mcp-payment:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    env_file:
+      - testzoo.env
+    environment:
+      DATABASE_URL_ASYNC: postgresql://workspace_user:Suni@123@postgres:5432/sonu
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m app.mcp.mcp_payment_wallet_server
+
+  mcp-dashboard:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    env_file:
+      - testzoo.env
+    environment:
+      DATABASE_URL_ASYNC: postgresql://workspace_user:Suni@123@postgres:5432/sonu
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m app.mcp.mcp_doctor_dashboard_server
+
+  mcp-patient:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"
+    env_file:
+      - testzoo.env
+    environment:
+      DATABASE_URL_ASYNC: postgresql://workspace_user:Suni@123@postgres:5432/sonu
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m app.mcp.mcp_patient_server
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - testzoo.env
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - api
+    command: npm run dev
+
+volumes:
+  pgdata:
