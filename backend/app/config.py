@@ -1,72 +1,43 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
-    API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "TestZoo"
-    DEBUG: bool = True
-
-    DB_USER: str = "workspace_user"
-    DB_PASS: str = "Suni@123"
-    DB_NAME: str = "sonu"
-    DB_HOST: str = "127.0.0.1"
-    DB_PORT: int = 5432
-
-    @property
-    def DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-
-    @property
-    def DATABASE_URL_SYNC(self) -> str:
-        return f"postgresql://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-
-    REDIS_URL: str = "redis://localhost:6379"
-
-    GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
-
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_MODEL: str = "qwen/qwen3.7-plus"
-
-    SECRET_KEY: str = "your-32-byte-secret-key-change-in-production"
+    # Database
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+    
+    # JWT
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-
-    TWILIO_ACCOUNT_SID: str = ""
-    TWILIO_AUTH_TOKEN: str = ""
-    TWILIO_WHATSAPP_NUMBER: str = "whatsapp:+14155238886"
-
-    STRIPE_SECRET_KEY: str = ""
-    STRIPE_PUBLISHABLE_KEY: str = ""
-
-    FRONTEND_URL: str = "http://localhost:3000"
-
-    # SMTP Email Settings
-    SMTP_HOST: str = ""
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASS: str = ""
-    SMTP_FROM: str = "noreply@testzoo.ai"
-    SMTP_TLS: bool = True
-
-    PATIENT_DISCOUNT_PERCENT: float = 15.0
-    CASHBACK_PERCENT: float = 5.0
-    REFERRAL_REWARD_AMOUNT_CENTS: int = 50000
-    MAX_SPONSORED_RESULTS: int = 3
-    COD_ENABLED: bool = True
-    WALLET_ENABLED: bool = True
-
-    MCP_CATALOG_PORT: int = 8001
-    MCP_ORDERS_PORT: int = 8002
-    MCP_PAYMENT_PORT: int = 8003
-    MCP_DASHBOARD_PORT: int = 8004
-    MCP_PATIENT_PORT: int = 8005
-
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    
+    # SMTP Configuration
+    SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "your-email@gmail.com")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "your-app-password")
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "noreply@testzoo.com")
+    
+    # WhatsApp Configuration
+    WHATSAPP_API_URL: str = os.getenv("WHATSAPP_API_URL", "https://api.whatsapp.com/send")
+    WHATSAPP_API_TOKEN: str = os.getenv("WHATSAPP_API_TOKEN", "")
+    WHATSAPP_PHONE_NUMBER: str = os.getenv("WHATSAPP_PHONE_NUMBER", "+1234567890")
+    
+    # Stripe Configuration
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_PUBLISHABLE_KEY: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    
+    # Payment Settings
+    CASHBACK_PERCENT: float = float(os.getenv("CASHBACK_PERCENT", "5"))
+    
+    # Frontend URL
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
+    
     class Config:
-        env_file = "testzoo.env"
+        env_file = ".env"
         case_sensitive = True
-        extra = "ignore"
 
 
 settings = Settings()
