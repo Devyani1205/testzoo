@@ -5,7 +5,7 @@ from pydantic import BaseModel, field_validator
 from typing import Optional
 import re
 from app.database import get_db
-from app.models import User, Order, Recommendation, Test, PatientProfile, Wallet, WalletTransaction, PromoCode, DoctorProfile
+from app.models import User, Order, Recommendation, Test, PatientProfile, Wallet, WalletTransaction, PromoCode, DoctorProfile, Lab
 from app.api.auth import get_current_user
 from app.config import settings
 from datetime import datetime
@@ -251,10 +251,18 @@ async def get_patient_orders(
         test = test_r.scalar_one_or_none()
         rec_r = await db.execute(select(Recommendation).where(Recommendation.id == o.recommendation_id))
         rec = rec_r.scalar_one_or_none()
+        
+        # FIX: Get lab_name from Lab table via test.lab_id
+        lab_name = ""
+        if test and test.lab_id:
+            lab_r = await db.execute(select(Lab).where(Lab.id == test.lab_id))
+            lab = lab_r.scalar_one_or_none()
+            lab_name = lab.name if lab else ""
+        
         result_list.append({
             "order_id": o.id,
             "test_name": test.name if test else "Unknown",
-            "lab_name": test.lab_name if test else "",
+            "lab_name": lab_name,
             "final_amount": o.final_amount_cents / 100,
             "patient_price": o.patient_price_cents / 100,
             "payment_status": o.payment_status,
@@ -312,6 +320,13 @@ async def track_order(order_id: str, db: AsyncSession = Depends(get_db)):
     test_r = await db.execute(select(Test).where(Test.id == order.test_id))
     test = test_r.scalar_one_or_none()
 
+    # FIX: Get lab_name from Lab table via test.lab_id
+    lab_name = ""
+    if test and test.lab_id:
+        lab_r = await db.execute(select(Lab).where(Lab.id == test.lab_id))
+        lab = lab_r.scalar_one_or_none()
+        lab_name = lab.name if lab else ""
+
     steps = [
         {"step": "Order Placed", "done": True, "icon": "📋"},
         {"step": "Payment Confirmed", "done": order.payment_status == "paid", "icon": "💳"},
@@ -323,7 +338,7 @@ async def track_order(order_id: str, db: AsyncSession = Depends(get_db)):
     return {
         "order_id": order.id,
         "test_name": test.name if test else "Unknown",
-        "lab_name": test.lab_name if test else "",
+        "lab_name": lab_name,
         "order_status": order.order_status,
         "payment_status": order.payment_status,
         "final_amount": order.final_amount_cents / 100,
@@ -404,12 +419,19 @@ async def export_recommendations_csv(
         order_r = await db.execute(select(Order).where(Order.recommendation_id == r.id))
         order = order_r.scalar_one_or_none()
 
+        # FIX: Get lab_name from Lab table via test.lab_id
+        lab_name = ""
+        if test and test.lab_id:
+            lab_r = await db.execute(select(Lab).where(Lab.id == test.lab_id))
+            lab = lab_r.scalar_one_or_none()
+            lab_name = lab.name if lab else ""
+
         writer.writerow({
             "Date": r.created_at.strftime("%Y-%m-%d %H:%M"),
             "Patient Name": r.patient_name or "Anonymous",
             "Patient Phone": r.patient_phone or "",
             "Test Name": test.name if test else "Unknown",
-            "Lab": test.lab_name if test else "",
+            "Lab": lab_name,
             "Category": test.category if test else "",
             "MRP (₹)": round(test.mrp_cents / 100, 2) if test else 0,
             "Patient Price (₹)": round(test.b2b_price_cents / 100 * (1 - (test.patient_discount_percent or 0) / 100), 2) if test else 0,
